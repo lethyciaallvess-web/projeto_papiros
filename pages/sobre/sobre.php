@@ -4,22 +4,21 @@
 <head>
     <meta charset="UTF-8">
 
-    <link rel="icon" href="../assets/img/icone.png">
-
+    <link rel="icon" href="../../assets/img/icone.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Sobre - Papiro's</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <link rel="stylesheet" href="../assets/css/sobre.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../../assets/css/sobre.css">
+    <link rel="stylesheet" href="../../assets/css/style.css">
 
 </head>
 
 <body>
 
-    <?php include("../header.php"); ?>
+    <?php include("../../includes/header.php"); ?>
 
     <section class="sobre container py-5">
 
@@ -34,7 +33,7 @@
         <div class="row align-items-center g-5">
 
             <div class="col-lg-6">
-                <img src="../assets/img/sobre.png" alt="Equipe da Papiro's" class="img-fluid">
+                <img src="../../assets/img/sobre.png" alt="Equipe da Papiro's" class="img-fluid">
             </div>
 
             <div class="col-lg-6 historia">
@@ -106,7 +105,7 @@
 
     </section>
 
-    <?php include("../footer.php"); ?>
+    <?php include("../../includes/footer.php"); ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 

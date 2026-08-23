@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
 
-    <link rel="icon" href="../assets/img/icone.png">
+    <link rel="icon" href="../../assets/img/icone.png">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -12,13 +12,13 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <link rel="stylesheet" href="../assets/css/contato.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../../assets/css/contato.css">
+    <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
 
 <body>
 
-    <?php include("../header.php"); ?>
+    <?php include("../../includes/header.php"); ?>
 
     <main class="container py-5">
 
@@ -54,7 +54,7 @@
 
     </main>
 
-    <?php include("../footer.php"); ?>
+    <?php include("../../includes/footer.php"); ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 

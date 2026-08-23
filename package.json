@@ -1,0 +1,25 @@
+{
+  "name": "papiros",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000P\u0000a\u0000p\u0000i\u0000r\u0000o\u0000s\u0000\r\u0000 \u0000",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lethycialves/Papiros.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/lethycialves/Papiros/issues"
+  },
+  "homepage": "https://github.com/lethycialves/Papiros#readme",
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

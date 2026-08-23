@@ -7,4 +7,5 @@
     $consulta->execute();
 
     $dadosFilmes = $consulta->fetchAll(PDO::FETCH_OBJ);
-?>
+
+    
