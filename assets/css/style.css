@@ -147,6 +147,59 @@ footer p {
   line-height: 1.6;
 }
 
+.dashboard-page {
+  background: #f4f7fb !important;
+}
+.dashboard-page main {
+  max-width: 1180px;
+}
+.dashboard-page .card {
+  padding: 0;
+  align-items: stretch;
+  border: 0 !important;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 5px 20px rgba(18, 31, 47, 0.08) !important;
+}
+.dashboard-page .card:hover {
+  transform: translateY(-2px);
+}
+.dashboard-page .card-body,
+.dashboard-page .card-header,
+.dashboard-page .card-footer {
+  padding: 20px 24px;
+}
+.dashboard-page .table {
+  width: 100%;
+  margin: 0;
+}
+.dashboard-page .table th,
+.dashboard-page .table td {
+  padding: 14px 18px;
+  vertical-align: middle;
+}
+.dashboard-page .table th {
+  background: #f1f4f8;
+  white-space: nowrap;
+}
+.dashboard-page .form-control,
+.dashboard-page .form-select,
+.dashboard-page .btn {
+  min-height: 44px;
+  border-radius: 10px;
+}
+.dashboard-page #pagina-atual {
+  font-weight: 600;
+}
+
+#indicadores-dashboard .card {
+  border-top: 4px solid #adcb16 !important;
+  min-height: 140px;
+}
+#indicadores-dashboard h2 {
+  font-size: 2.2rem;
+}
+
 @media (max-width: 991px) {
   body {
     padding-top: 80px;

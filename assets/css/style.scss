@@ -166,6 +166,71 @@ footer {
   }
 }
 
+.dashboard-page {
+  background: #f4f7fb !important;
+
+  main {
+    max-width: 1180px;
+  }
+
+  .card {
+    padding: 0;
+    align-items: stretch;
+    border: 0 !important;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 5px 20px rgba(18, 31, 47, 0.08) !important;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+  }
+
+  .card-body,
+  .card-header,
+  .card-footer {
+    padding: 20px 24px;
+  }
+
+  .table {
+    width: 100%;
+    margin: 0;
+  }
+
+  .table th,
+  .table td {
+    padding: 14px 18px;
+    vertical-align: middle;
+  }
+
+  .table th {
+    background: #f1f4f8;
+    white-space: nowrap;
+  }
+
+  .form-control,
+  .form-select,
+  .btn {
+    min-height: 44px;
+    border-radius: 10px;
+  }
+
+  #pagina-atual {
+    font-weight: 600;
+  }
+}
+
+#indicadores-dashboard {
+  .card {
+    border-top: 4px solid #adcb16 !important;
+    min-height: 140px;
+  }
+
+  h2 {
+    font-size: 2.2rem;
+  }
+}
+
 @media (max-width: 991px) {
 
   body {

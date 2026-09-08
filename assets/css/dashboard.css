@@ -1,0 +1,132 @@
+.dashboard-page {
+    background: #f3f6fa !important;
+    color: #172033;
+}
+
+.dashboard-page main {
+    max-width: 1180px;
+}
+
+.dashboard-page .card {
+    padding: 0;
+    align-items: stretch;
+    border: 0 !important;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 6px 24px rgba(18, 31, 47, 0.08) !important;
+}
+
+.dashboard-page .card:hover {
+    transform: translateY(-2px);
+}
+
+.dashboard-page .card-body {
+    padding: 24px;
+}
+
+.dashboard-page .card-header {
+    padding: 20px 24px !important;
+    border-bottom: 1px solid #e8edf3;
+}
+
+.dashboard-page .card-header h2 {
+    color: #121f2f;
+    font-weight: 700;
+}
+
+#indicadores-dashboard .card {
+    min-height: 145px;
+}
+
+#indicadores-dashboard .card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#indicadores-dashboard h2 {
+    font-size: 2.4rem;
+}
+
+#indicadores-dashboard > div:nth-child(1) .card {
+    border-top: 4px solid #246bfd !important;
+}
+
+#indicadores-dashboard > div:nth-child(2) .card {
+    border-top: 4px solid #17a2b8 !important;
+}
+
+#indicadores-dashboard > div:nth-child(3) .card {
+    border-top: 4px solid #f0ad00 !important;
+}
+
+#indicadores-dashboard > div:nth-child(4) .card {
+    border-top: 4px solid #dc3545 !important;
+}
+
+.dashboard-page .form-control,
+.dashboard-page .form-select {
+    min-height: 46px;
+    border-radius: 10px;
+    border-color: #dce3eb;
+}
+
+.dashboard-page .form-control:focus,
+.dashboard-page .form-select:focus {
+    border-color: #246bfd;
+    box-shadow: 0 0 0 3px rgba(36, 107, 253, 0.12);
+}
+
+.dashboard-page .btn {
+    min-height: 42px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.dashboard-page .table {
+    width: 100%;
+    margin: 0;
+}
+
+.dashboard-page .table th {
+    color: #344054;
+    background: #f7f9fc;
+    white-space: nowrap;
+}
+
+.dashboard-page .table td,
+.dashboard-page .table th {
+    padding: 14px 18px;
+    vertical-align: middle;
+}
+
+.dashboard-page .table tbody tr:hover {
+    background: #f8fbff;
+}
+
+.dashboard-page .card-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e8edf3;
+}
+
+#pagina-atual {
+    color: #475467;
+    font-weight: 600;
+}
+
+@media (max-width: 767px) {
+    .dashboard-page main {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .dashboard-page .card-body,
+    .dashboard-page .card-header {
+        padding: 18px !important;
+    }
+
+    .dashboard-page .table td,
+    .dashboard-page .table th {
+        padding: 12px;
+    }
+}
