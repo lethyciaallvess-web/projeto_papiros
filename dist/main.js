@@ -1,5 +1,64 @@
 "use strict";
 let pagina = 1;
+const formatadorMoeda = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+});
+function ehObjeto(valor) {
+    return typeof valor === "object" && valor !== null;
+}
+function ehNumero(valor) {
+    return typeof valor === "number" && Number.isFinite(valor);
+}
+function ehStatusEstoque(valor) {
+    return valor === "SEM ESTOQUE"
+        || valor === "ESTOQUE CRÍTICO"
+        || valor === "ESTOQUE NORMAL";
+}
+function ehCategoria(valor) {
+    return ehObjeto(valor)
+        && ehNumero(valor.id_categoria)
+        && typeof valor.nome_categoria === "string"
+        && ehNumero(valor.total_produtos)
+        && ehNumero(valor.estoque_total)
+        && ehNumero(valor.media_estoque)
+        && ehNumero(valor.valor_total_estoque)
+        && ehNumero(valor.produtos_sem_estoque)
+        && ehNumero(valor.produtos_estoque_critico)
+        && ehNumero(valor.produtos_estoque_normal);
+}
+function ehItemInventario(valor) {
+    return ehObjeto(valor)
+        && ehNumero(valor.id_produto)
+        && ehNumero(valor.quantidade_estoque)
+        && ehNumero(valor.valor_unitario)
+        && ehNumero(valor.valor_total)
+        && ehStatusEstoque(valor.status_estoque);
+}
+function ehProduto(valor) {
+    return ehObjeto(valor)
+        && typeof valor.nome_produto === "string"
+        && typeof valor.categorias === "string"
+        && ehItemInventario(valor);
+}
+function ehRespostaAPI(valor) {
+    if (!ehObjeto(valor) || typeof valor.sucesso !== "boolean") {
+        return false;
+    }
+    if (valor.sucesso === false) {
+        return typeof valor.mensagem === "string";
+    }
+    return ehNumero(valor.pagina)
+        && ehNumero(valor.limite)
+        && ehNumero(valor.total_registros)
+        && ehNumero(valor.total_paginas)
+        && Array.isArray(valor.categorias)
+        && valor.categorias.every(ehCategoria)
+        && Array.isArray(valor.inventario)
+        && valor.inventario.every(ehItemInventario)
+        && Array.isArray(valor.produtos)
+        && valor.produtos.every(ehProduto);
+}
 function elemento(id) {
     return document.getElementById(id);
 }
@@ -23,25 +82,32 @@ async function buscarDashboard(numeroPagina) {
         limite: "10"
     });
     const resposta = await fetch(`../api/dashboard.php?${parametros}`);
-    const dados = await resposta.json();
-    if (!resposta.ok || !dados.sucesso) {
-        throw new Error(dados.sucesso
-            ? "Não foi possível acessar a API."
-            : dados.mensagem);
+    const conteudo = await resposta.json();
+    if (!ehRespostaAPI(conteudo)) {
+        throw new Error("A API retornou dados em formato inválido.");
     }
-    return dados;
+    if (!resposta.ok || !conteudo.sucesso) {
+        throw new Error(conteudo.sucesso
+            ? "Não foi possível acessar a API."
+            : conteudo.mensagem);
+    }
+    return conteudo;
 }
-function calcularTotais(categorias) {
-    return categorias.reduce((total, categoria) => ({
-        produtos: total.produtos + categoria.total_produtos,
-        estoque: total.estoque + categoria.estoque_total,
-        criticos: total.criticos +
-            categoria.produtos_estoque_critico,
-        semEstoque: total.semEstoque +
-            categoria.produtos_sem_estoque
+function calcularTotais(inventario) {
+    return inventario.reduce((total, produto) => ({
+        produtos: total.produtos + 1,
+        estoque: total.estoque + produto.quantidade_estoque,
+        valorEstoque: total.valorEstoque
+            + produto.quantidade_estoque
+                * produto.valor_unitario,
+        criticos: total.criticos
+            + (produto.status_estoque === "ESTOQUE CRÍTICO" ? 1 : 0),
+        semEstoque: total.semEstoque
+            + (produto.status_estoque === "SEM ESTOQUE" ? 1 : 0)
     }), {
         produtos: 0,
         estoque: 0,
+        valorEstoque: 0,
         criticos: 0,
         semEstoque: 0
     });
@@ -69,8 +135,8 @@ function preencherTabela(id, linhas, colunas, mensagem) {
 }
 function preencherFiltro(categorias) {
     const campo = elemento("filtro-categoria");
-    if (!(campo instanceof HTMLSelectElement) ||
-        campo.options.length > 1) {
+    if (!(campo instanceof HTMLSelectElement)
+        || campo.options.length > 1) {
         return;
     }
     for (const categoria of categorias) {
@@ -81,16 +147,18 @@ function preencherFiltro(categorias) {
     }
 }
 function renderizar(dados) {
-    const totais = calcularTotais(dados.categorias);
-    const destaque = dados.categorias.reduce((maior, categoria) => !maior ||
-        categoria.estoque_total > maior.estoque_total
+    const totais = calcularTotais(dados.inventario);
+    const destaque = dados.categorias.reduce((maior, categoria) => !maior
+        || categoria.valor_total_estoque
+            > maior.valor_total_estoque
         ? categoria
         : maior, null);
     texto("categoria-destaque", destaque
-        ? `${destaque.nome_categoria} (${destaque.estoque_total})`
+        ? `${destaque.nome_categoria} (${formatadorMoeda.format(destaque.valor_total_estoque)})`
         : "Sem dados");
     texto("total-produtos", String(totais.produtos));
     texto("estoque-total", String(totais.estoque));
+    texto("valor-total-estoque", formatadorMoeda.format(totais.valorEstoque));
     texto("total-criticos", String(totais.criticos));
     texto("total-sem-estoque", String(totais.semEstoque));
     preencherFiltro(dados.categorias);
@@ -99,29 +167,32 @@ function renderizar(dados) {
         String(categoria.total_produtos),
         String(categoria.estoque_total),
         categoria.media_estoque.toFixed(2),
+        formatadorMoeda.format(categoria.valor_total_estoque),
         String(categoria.produtos_sem_estoque),
         String(categoria.produtos_estoque_critico),
         String(categoria.produtos_estoque_normal)
-    ]), 7, "Nenhuma categoria encontrada.");
+    ]), 8, "Nenhuma categoria encontrada.");
     const reposicao = dados.produtos
         .filter((produto) => produto.status_estoque !== "ESTOQUE NORMAL")
         .map((produto) => [
         produto.nome_produto,
         produto.categorias,
         String(produto.quantidade_estoque),
+        formatadorMoeda.format(produto.valor_unitario),
+        formatadorMoeda.format(produto.valor_total),
         produto.status_estoque
     ]);
-    preencherTabela("tabela-reposicao", reposicao, 4, "Nenhum produto precisa de reposição.");
+    preencherTabela("tabela-reposicao", reposicao, 6, "Nenhum produto precisa de reposição.");
     pagina = dados.pagina;
-    texto("pagina-atual", `Página ${pagina}`);
+    texto("pagina-atual", `Página ${pagina} de ${Math.max(1, dados.total_paginas)}`);
     const anterior = elemento("pagina-anterior");
     const proxima = elemento("proxima-pagina");
     if (anterior instanceof HTMLButtonElement) {
-        anterior.disabled = pagina === 1;
+        anterior.disabled = pagina <= 1;
     }
     if (proxima instanceof HTMLButtonElement) {
-        proxima.disabled =
-            dados.produtos.length < dados.limite;
+        proxima.disabled = dados.total_paginas === 0
+            || pagina >= dados.total_paginas;
     }
 }
 async function carregar(numeroPagina) {
@@ -130,7 +201,7 @@ async function carregar(numeroPagina) {
         const dados = await buscarDashboard(numeroPagina);
         renderizar(dados);
         if (mensagem) {
-            mensagem.className = dados.produtos.length
+            mensagem.className = dados.total_registros > 0
                 ? "d-none"
                 : "alert alert-warning";
             mensagem.textContent =

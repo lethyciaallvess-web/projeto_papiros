@@ -43,7 +43,7 @@ if (!isset($_SESSION['projeto_papiros'])) {
         </div>
 
         <section id="indicadores-dashboard" class="row g-4 mb-5" aria-label="Indicadores de estoque">
-            <div class="col-sm-6 col-xl">
+            <div class="col-sm-6 col-xl-4">
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <p class="text-secondary mb-2">
@@ -57,7 +57,7 @@ if (!isset($_SESSION['projeto_papiros'])) {
                 </div>
             </div>
 
-            <div class="col-sm-6 col-xl">
+            <div class="col-sm-6 col-xl-4">
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <p class="text-secondary mb-2">
@@ -71,7 +71,21 @@ if (!isset($_SESSION['projeto_papiros'])) {
                 </div>
             </div>
 
-            <div class="col-sm-6 col-xl">
+            <div class="col-sm-6 col-xl-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <p class="text-secondary mb-2">
+                            Valor total do estoque
+                        </p>
+
+                        <h2 id="valor-total-estoque" class="h3 fw-bold text-success mb-0">
+                            R$ 0,00
+                        </h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-4">
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <p class="text-secondary mb-2">
@@ -85,7 +99,7 @@ if (!isset($_SESSION['projeto_papiros'])) {
                 </div>
             </div>
 
-            <div class="col-sm-6 col-xl">
+            <div class="col-sm-6 col-xl-4">
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <p class="text-secondary mb-2">
@@ -99,25 +113,20 @@ if (!isset($_SESSION['projeto_papiros'])) {
                 </div>
             </div>
 
-            <div class="col-sm-6 col-xl">
+            <div class="col-sm-6 col-xl-4">
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <p class="text-secondary mb-2">
                             Categoria em destaque
                         </p>
 
-                        <h2 id="categoria-destaque" class="fw-bold mb-0">
+                        <h2 id="categoria-destaque" class="h4 fw-bold mb-0">
                             -
                         </h2>
                     </div>
                 </div>
             </div>
 
-            <h2 id="total-sem-estoque" class="display-6 fw-bold text-danger mb-0">
-            </h2>
-            </div>
-            </div>
-            </div>
         </section>
 
         <section class="card shadow-sm border-0 mb-4">
@@ -167,6 +176,7 @@ if (!isset($_SESSION['projeto_papiros'])) {
                             <th>Produtos</th>
                             <th>Estoque total</th>
                             <th>Média</th>
+                            <th>Valor em estoque</th>
                             <th>Sem estoque</th>
                             <th>Críticos</th>
                             <th>Normais</th>
@@ -175,7 +185,7 @@ if (!isset($_SESSION['projeto_papiros'])) {
 
                     <tbody id="tabela-categorias">
                         <tr>
-                            <td colspan="7" class="text-center py-4">
+                            <td colspan="8" class="text-center py-4">
                                 Carregando categorias...
                             </td>
                         </tr>
@@ -198,13 +208,15 @@ if (!isset($_SESSION['projeto_papiros'])) {
                             <th>Produto</th>
                             <th>Categoria</th>
                             <th>Quantidade</th>
+                            <th>Valor unitário</th>
+                            <th>Valor total</th>
                             <th>Situação</th>
                         </tr>
                     </thead>
 
                     <tbody id="tabela-reposicao">
                         <tr>
-                            <td colspan="4" class="text-center py-4">
+                            <td colspan="6" class="text-center py-4">
                                 Carregando produtos...
                             </td>
                         </tr>

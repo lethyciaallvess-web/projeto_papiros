@@ -8,104 +8,129 @@ $busca = trim($_GET['busca'] ?? '');
 $categoria = max(0, (int) ($_GET['categoria'] ?? 0));
 $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
 $limite = min(50, max(1, (int) ($_GET['limite'] ?? 10)));
-$offset = ($pagina - 1) * $limite;
 
 try {
     require_once __DIR__ . '/../config/conexao.php';
 
-    $categorias = $pdo->query("
-        select
-            c.id_categoria,
-            c.nome_categoria,
-            count(distinct p.id_produto) as total_produtos,
-            coalesce(sum(p.quantidade_estoque), 0) as estoque_total,
-            round(
-                coalesce(avg(p.quantidade_estoque), 0),
-                2
-            ) as media_estoque,
-            count(distinct case
-                when p.quantidade_estoque = 0
-                then p.id_produto
-            end) as produtos_sem_estoque,
-            count(distinct case
-                when p.quantidade_estoque between 1 and 5
-                then p.id_produto
-            end) as produtos_estoque_critico,
-            count(distinct case
-                when p.quantidade_estoque > 5
-                then p.id_produto
-            end) as produtos_estoque_normal
-        from categoria as c
-        left join produto_categoria as pc
-            on pc.id_categoria = c.id_categoria
-        left join produto as p
-            on p.id_produto = pc.id_produto
-        group by
-            c.id_categoria,
-            c.nome_categoria
-        order by
-            c.nome_categoria
-    ")->fetchAll(PDO::FETCH_ASSOC);
+    $consulta = $pdo->query(
+        'call sp_dashboard_indicadores()'
+    );
+    $categorias = $consulta->fetchAll(PDO::FETCH_ASSOC);
+    $consulta->closeCursor();
+
+    $consulta = $pdo->query(
+        'call sp_dashboard_inventario()'
+    );
+    $inventario = $consulta->fetchAll(PDO::FETCH_ASSOC);
+    $consulta->closeCursor();
+
+    $consulta = $pdo->prepare(
+        'call sp_contar_produtos(?, ?)'
+    );
+    $consulta->execute([$busca, $categoria]);
+    $contagem = $consulta->fetch(PDO::FETCH_ASSOC);
+    $consulta->closeCursor();
+
+    $totalRegistros = (int) (
+        $contagem['total_registros'] ?? 0
+    );
+
+    $totalPaginas = (int) ceil(
+        $totalRegistros / $limite
+    );
+
+    if ($totalPaginas > 0 && $pagina > $totalPaginas) {
+        $pagina = $totalPaginas;
+    }
+
+    $offset = ($pagina - 1) * $limite;
 
     $consulta = $pdo->prepare(
         'call sp_listar_produtos(?, ?, ?, ?)'
     );
-
     $consulta->execute([
         $busca,
         $categoria,
         $limite,
         $offset
     ]);
-
     $produtos = $consulta->fetchAll(PDO::FETCH_ASSOC);
     $consulta->closeCursor();
 
     $categorias = array_map(
-        static fn(array $categoria): array => [
+        static fn(array $item): array => [
             'id_categoria' =>
-                (int) $categoria['id_categoria'],
+                (int) $item['id_categoria'],
 
             'nome_categoria' =>
-                $categoria['nome_categoria'],
+                (string) $item['nome_categoria'],
 
             'total_produtos' =>
-                (int) $categoria['total_produtos'],
+                (int) $item['total_produtos'],
 
             'estoque_total' =>
-                (int) $categoria['estoque_total'],
+                (int) $item['estoque_total'],
 
             'media_estoque' =>
-                (float) $categoria['media_estoque'],
+                (float) $item['media_estoque'],
+
+            'valor_total_estoque' =>
+                (float) $item['valor_total_estoque'],
 
             'produtos_sem_estoque' =>
-                (int) $categoria['produtos_sem_estoque'],
+                (int) $item['produtos_sem_estoque'],
 
             'produtos_estoque_critico' =>
-                (int) $categoria['produtos_estoque_critico'],
+                (int) $item['produtos_estoque_critico'],
 
             'produtos_estoque_normal' =>
-                (int) $categoria['produtos_estoque_normal']
+                (int) $item['produtos_estoque_normal']
         ],
         $categorias
     );
 
-    $produtos = array_map(
-        static fn(array $produto): array => [
+    $inventario = array_map(
+        static fn(array $item): array => [
             'id_produto' =>
-                (int) $produto['id_produto'],
-
-            'nome_produto' =>
-                $produto['nome_produto'],
+                (int) $item['id_produto'],
 
             'quantidade_estoque' =>
-                (int) $produto['quantidade_estoque'],
+                (int) $item['quantidade_estoque'],
+
+            'valor_unitario' =>
+                (float) $item['valor_unitario'],
+
+            'valor_total' =>
+                (float) $item['valor_total'],
 
             'status_estoque' =>
-                $produto['status_estoque'],
+                (string) $item['status_estoque']
+        ],
+        $inventario
+    );
+
+    $produtos = array_map(
+        static fn(array $item): array => [
+            'id_produto' =>
+                (int) $item['id_produto'],
+
+            'nome_produto' =>
+                (string) $item['nome_produto'],
+
+            'quantidade_estoque' =>
+                (int) $item['quantidade_estoque'],
+
+            'valor_unitario' =>
+                (float) $item['valor_unitario'],
+
+            'valor_total' =>
+                (float) $item['valor_total'],
+
+            'status_estoque' =>
+                (string) $item['status_estoque'],
 
             'categorias' =>
-                $produto['nome_categoria']
+                (string) $item['nome_categoria']
         ],
         $produtos
     );
@@ -115,7 +140,10 @@ try {
             'sucesso' => true,
             'pagina' => $pagina,
             'limite' => $limite,
+            'total_registros' => $totalRegistros,
+            'total_paginas' => $totalPaginas,
             'categorias' => $categorias,
+            'inventario' => $inventario,
             'produtos' => $produtos
         ],
         JSON_UNESCAPED_UNICODE |
@@ -129,7 +157,7 @@ try {
     echo json_encode(
         [
             'sucesso' => false,
-            'mensagem' => 'Erro ao carregar a dashboard.'
+            'mensagem' => 'erro ao carregar a dashboard.'
         ],
         JSON_UNESCAPED_UNICODE
     );

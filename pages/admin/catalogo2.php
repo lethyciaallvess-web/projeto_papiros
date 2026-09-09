@@ -1,289 +1,402 @@
-    <?php
-    session_start();
+<?php
 
-    if (!isset($_SESSION['projeto_papiros'])) {
-        header('Location: ../login.php');
-        exit;
+declare(strict_types=1);
+
+require_once '../../includes/autenticacao.php';
+
+$usuarioLogado = exigirAutenticacao('../login.php');
+$csrfToken = tokenCsrf();
+
+require_once '../../config/conexao.php';
+
+$redirecionar = static function (string $mensagem): never {
+    header("Location: catalogo2.php?msg={$mensagem}");
+    exit;
+};
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!tokenCsrfValido($_POST['csrf_token'] ?? null)) {
+        $redirecionar('csrf');
     }
 
-    require_once '../../config/conexao.php';
+    $acao = (string) ($_POST['acao'] ?? '');
+    $idProduto = max(0, (int) ($_POST['id_produto'] ?? 0));
 
-    $idCategoria = (int) ($_GET['editar_categoria'] ?? 0);
-    $categoriaEditar = null;
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $acaoCategoria = $_POST['acao_categoria'] ?? '';
-        $categoriaPost = (int) ($_POST['id_categoria'] ?? 0);
-
-        if ($acaoCategoria === 'salvar') {
-            $nomeCategoria = trim($_POST['nome_categoria'] ?? '');
-
-            if ($nomeCategoria === '') {
-                header('Location: catalogo2.php?categoria=vazia#categorias');
-                exit;
-            }
-
-            if ($categoriaPost) {
-                $consulta = $pdo->prepare(
-                    'update categoria set nome_categoria = ? where id_categoria = ?'
-                );
-                $consulta->execute([$nomeCategoria, $categoriaPost]);
-            } else {
-                $consulta = $pdo->prepare(
-                    'insert into categoria (nome_categoria) values (?)'
-                );
-                $consulta->execute([$nomeCategoria]);
-            }
-
-            header('Location: catalogo2.php?categoria=salva#categorias');
-            exit;
-        }
-
-        if ($acaoCategoria === 'excluir') {
-            $consulta = $pdo->prepare(
-                'select count(*) from produto_categoria where id_categoria = ?'
-            );
-            $consulta->execute([$categoriaPost]);
-
-            if ($consulta->fetchColumn() > 0) {
-                header('Location: catalogo2.php?categoria=em_uso#categorias');
-                exit;
-            }
-
-            $consulta = $pdo->prepare(
-                'delete from categoria where id_categoria = ?'
-            );
-            $consulta->execute([$categoriaPost]);
-
-            header('Location: catalogo2.php?categoria=excluida#categorias');
-            exit;
-        }
-    }
-
-    if ($idCategoria) {
-        $consulta = $pdo->prepare(
-            'select * from categoria where id_categoria = ?'
-        );
-        $consulta->execute([$idCategoria]);
-        $categoriaEditar = $consulta->fetch(PDO::FETCH_ASSOC);
-    }
-
-    $categorias = $pdo->query(
-        'select * from categoria order by nome_categoria'
-    )->fetchAll(PDO::FETCH_ASSOC);
-
-    $id = $_GET['editar'] ?? '';
-    $produtoEditar = null;
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-        $acao = $_POST['acao'];
-        $idProduto = $_POST['id_produto'] ?? '';
-        $nome = trim($_POST['nome_produto'] ?? '');
-        $descricao = trim($_POST['descricao'] ?? '');
-        $imagem = trim($_POST['imagem'] ?? '');
-
+    try {
         if ($acao === 'salvar') {
+            $nome = trim((string) ($_POST['nome_produto'] ?? ''));
+            $descricao = trim((string) ($_POST['descricao'] ?? ''));
+            $imagem = basename(trim((string) ($_POST['imagem'] ?? '')));
+            $quantidade = filter_var(
+                $_POST['quantidade_estoque'] ?? null,
+                FILTER_VALIDATE_INT
+            );
+            $valorRecebido = str_replace(
+                ',',
+                '.',
+                trim((string) ($_POST['valor_unitario'] ?? ''))
+            );
+            $idCategoria = max(0, (int) ($_POST['id_categoria'] ?? 0));
 
-            if ($idProduto) {
-                $stmt = mysqli_prepare(
-                    $conexao,
-                    "UPDATE produto SET nome_produto=?, descricao=?, imagem=? WHERE id_produto=?"
+            if (
+                $nome === ''
+                || $descricao === ''
+                || $imagem === ''
+                || $quantidade === false
+                || $quantidade < 0
+                || !is_numeric($valorRecebido)
+                || (float) $valorRecebido < 0
+                || $idCategoria === 0
+            ) {
+                $redirecionar('invalido');
+            }
+
+            $consultaCategoria = $pdo->prepare(
+                'SELECT COUNT(*) FROM categoria WHERE id_categoria = ?'
+            );
+            $consultaCategoria->execute([$idCategoria]);
+
+            if ((int) $consultaCategoria->fetchColumn() === 0) {
+                $redirecionar('categoria');
+            }
+
+            $valorUnitario = number_format(
+                (float) $valorRecebido,
+                2,
+                '.',
+                ''
+            );
+
+            $pdo->beginTransaction();
+
+            if ($idProduto > 0) {
+                $consulta = $pdo->prepare(
+                    'UPDATE produto
+                    SET nome_produto = ?,
+                        descricao = ?,
+                        imagem = ?,
+                        quantidade_estoque = ?,
+                        valor_unitario = ?
+                    WHERE id_produto = ?'
                 );
-
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "sssi",
+                $consulta->execute([
                     $nome,
                     $descricao,
                     $imagem,
+                    $quantidade,
+                    $valorUnitario,
                     $idProduto
-                );
-
+                ]);
             } else {
-
-                $stmt = mysqli_prepare(
-                    $conexao,
-                    "INSERT INTO produto (nome_produto, descricao, imagem) VALUES (?, ?, ?)"
+                $consulta = $pdo->prepare(
+                    'INSERT INTO produto (
+                        nome_produto,
+                        descricao,
+                        imagem,
+                        quantidade_estoque,
+                        valor_unitario
+                    ) VALUES (?, ?, ?, ?, ?)'
                 );
-
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "sss",
+                $consulta->execute([
                     $nome,
                     $descricao,
-                    $imagem
-                );
+                    $imagem,
+                    $quantidade,
+                    $valorUnitario
+                ]);
+                $idProduto = (int) $pdo->lastInsertId();
             }
 
-            mysqli_stmt_execute($stmt);
-            header('Location: catalogo2.php?msg=salvo');
-            exit;
-        }
-
-        if ($acao === 'excluir') {
-
-            $stmt = mysqli_prepare(
-                $conexao,
-                "DELETE FROM produto WHERE id_produto=?"
+            $removerVinculos = $pdo->prepare(
+                'DELETE FROM produto_categoria WHERE id_produto = ?'
             );
+            $removerVinculos->execute([$idProduto]);
 
-            mysqli_stmt_bind_param($stmt, "i", $idProduto);
-            mysqli_stmt_execute($stmt);
+            $vincularCategoria = $pdo->prepare(
+                'INSERT INTO produto_categoria (id_produto, id_categoria)
+                VALUES (?, ?)'
+            );
+            $vincularCategoria->execute([$idProduto, $idCategoria]);
 
-            header('Location: catalogo2.php?msg=excluido');
-            exit;
+            $pdo->commit();
+            $redirecionar('salvo');
         }
+
+        if ($acao === 'excluir' && $idProduto > 0) {
+            $pdo->beginTransaction();
+
+            $removerVinculos = $pdo->prepare(
+                'DELETE FROM produto_categoria WHERE id_produto = ?'
+            );
+            $removerVinculos->execute([$idProduto]);
+
+            $excluirProduto = $pdo->prepare(
+                'DELETE FROM produto WHERE id_produto = ?'
+            );
+            $excluirProduto->execute([$idProduto]);
+
+            if ($excluirProduto->rowCount() === 0) {
+                throw new RuntimeException('Produto não encontrado.');
+            }
+
+            $pdo->commit();
+            $redirecionar('excluido');
+        }
+
+        $redirecionar('invalido');
+    } catch (Throwable $erro) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        error_log($erro->getMessage());
+        $redirecionar('erro');
     }
+}
 
-    if ($id) {
-        $stmt = mysqli_prepare(
-            $conexao,
-            "SELECT * FROM produto WHERE id_produto=?"
-        );
+$idEditar = max(0, (int) ($_GET['editar'] ?? 0));
+$produtoEditar = null;
 
-        mysqli_stmt_bind_param($stmt, "i", $id);
-        mysqli_stmt_execute($stmt);
-
-        $produtoEditar = mysqli_fetch_assoc(
-            mysqli_stmt_get_result($stmt)
-        );
-    }
-
-    $resultado = mysqli_query(
-        $conexao,
-        "SELECT * FROM produto ORDER BY nome_produto"
+if ($idEditar > 0) {
+    $consulta = $pdo->prepare(
+        'SELECT
+            p.*,
+            (
+                SELECT MIN(pc.id_categoria)
+                FROM produto_categoria AS pc
+                WHERE pc.id_produto = p.id_produto
+            ) AS id_categoria
+        FROM produto AS p
+        WHERE p.id_produto = ?'
     );
+    $consulta->execute([$idEditar]);
+    $produtoEditar = $consulta->fetch() ?: null;
+}
 
-    $produtos = mysqli_fetch_all($resultado, MYSQLI_ASSOC);
-    ?>
+$categorias = $pdo->query(
+    'SELECT id_categoria, nome_categoria
+    FROM categoria
+    ORDER BY nome_categoria'
+)->fetchAll();
 
-    <!DOCTYPE html>
-    <html lang="pt-br">
+$produtos = $pdo->query(
+    "SELECT
+        p.id_produto,
+        p.nome_produto,
+        p.descricao,
+        p.imagem,
+        p.quantidade_estoque,
+        p.valor_unitario,
+        COALESCE(
+            GROUP_CONCAT(
+                DISTINCT c.nome_categoria
+                ORDER BY c.nome_categoria
+                SEPARATOR ', '
+            ),
+            'Sem categoria'
+        ) AS categorias
+    FROM produto AS p
+    LEFT JOIN produto_categoria AS pc
+        ON pc.id_produto = p.id_produto
+    LEFT JOIN categoria AS c
+        ON c.id_categoria = pc.id_categoria
+    GROUP BY
+        p.id_produto,
+        p.nome_produto,
+        p.descricao,
+        p.imagem,
+        p.quantidade_estoque,
+        p.valor_unitario
+    ORDER BY p.nome_produto"
+)->fetchAll();
 
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="icon" href="../assets/img/icone.png">
-        <title>Catálogo Admin - Papiro's</title>
+$mensagens = [
+    'salvo' => ['success', 'Produto salvo e vinculado à categoria com sucesso.'],
+    'excluido' => ['success', 'Produto e seus vínculos foram excluídos com sucesso.'],
+    'invalido' => ['warning', 'Preencha todos os campos com valores válidos.'],
+    'categoria' => ['warning', 'Selecione uma categoria existente.'],
+    'csrf' => ['danger', 'A sessão do formulário expirou. Atualize a página e tente novamente.'],
+    'erro' => ['danger', 'Não foi possível concluir a operação. Nenhuma alteração parcial foi mantida.']
+];
+$mensagemAtual = $mensagens[$_GET['msg'] ?? ''] ?? null;
 
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="../../assets/css/style.css">
-    </head>
+$escapar = static fn(mixed $valor): string => htmlspecialchars(
+    (string) $valor,
+    ENT_QUOTES,
+    'UTF-8'
+);
 
-    <body>
+$formatarMoeda = static fn(float $valor): string => 'R$ ' . number_format(
+    $valor,
+    2,
+    ',',
+    '.'
+);
+?>
+<!DOCTYPE html>
+<html lang="pt-br">
 
-        <?php include '../../includes/header2.php'; ?>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../../assets/img/icone.png">
+    <title>Produtos - Papiro's</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
 
-        <main class="container py-5">
+<body>
+    <?php include '../../includes/header2.php'; ?>
 
-            <h1 class="mb-4">Catálogo</h1>
+    <main class="container py-5">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+                <h1 class="mb-1">Produtos</h1>
+                <p class="text-secondary mb-0">
+                    Cadastro, consulta, edição e exclusão do catálogo.
+                </p>
+            </div>
 
-            <?php if (isset($_GET['msg'])): ?>
-                <div class="alert alert-success">
-                    <?= $_GET['msg'] === 'excluido'
-                        ? 'Produto excluído com sucesso!'
-                        : 'Produto salvo com sucesso!' ?>
-                </div>
-            <?php endif; ?>
+            <a href="categoria.php" class="btn btn-outline-primary">
+                Gerenciar categorias
+            </a>
+        </div>
 
-            <form method="post" class="mb-5">
+        <?php if ($mensagemAtual): ?>
+            <div class="alert alert-<?= $mensagemAtual[0] ?>" role="alert">
+                <?= $escapar($mensagemAtual[1]) ?>
+            </div>
+        <?php endif; ?>
 
-                <input type="hidden" name="acao" value="salvar">
-                <input type="hidden" name="id_produto" value="<?= $produtoEditar['id_produto'] ?? '' ?>">
+        <section class="card shadow-sm border-0 mb-5">
+            <div class="card-body w-100">
+                <h2 class="h4 mb-4">
+                    <?= $produtoEditar ? 'Editar produto' : 'Adicionar produto' ?>
+                </h2>
 
-                <div class="mb-3">
-                    <label class="form-label">Produto</label>
+                <form method="post" class="row g-3">
+                    <input type="hidden" name="csrf_token" value="<?= $escapar($csrfToken) ?>">
+                    <input type="hidden" name="acao" value="salvar">
+                    <input type="hidden" name="id_produto"
+                        value="<?= (int) ($produtoEditar['id_produto'] ?? 0) ?>">
 
-                    <input type="text" name="nome_produto" class="form-control"
-                        value="<?= $produtoEditar['nome_produto'] ?? '' ?>" required>
-                </div>
+                    <div class="col-md-6">
+                        <label for="nome-produto" class="form-label">Produto</label>
+                        <input type="text" id="nome-produto" name="nome_produto" class="form-control"
+                            maxlength="100" value="<?= $escapar($produtoEditar['nome_produto'] ?? '') ?>" required>
+                    </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Descrição</label>
+                    <div class="col-md-3">
+                        <label for="quantidade-estoque" class="form-label">Quantidade em estoque</label>
+                        <input type="number" id="quantidade-estoque" name="quantidade_estoque"
+                            class="form-control" min="0" step="1"
+                            value="<?= (int) ($produtoEditar['quantidade_estoque'] ?? 0) ?>" required>
+                    </div>
 
-                    <textarea name="descricao" class="form-control"
-                        required><?= $produtoEditar['descricao'] ?? '' ?></textarea>
-                </div>
+                    <div class="col-md-3">
+                        <label for="valor-unitario" class="form-label">Valor unitário (R$)</label>
+                        <input type="number" id="valor-unitario" name="valor_unitario"
+                            class="form-control" min="0" step="0.01"
+                            value="<?= $escapar($produtoEditar['valor_unitario'] ?? '0.00') ?>" required>
+                    </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Imagem</label>
+                    <div class="col-md-8">
+                        <label for="descricao" class="form-label">Descrição</label>
+                        <textarea id="descricao" name="descricao" class="form-control" rows="3"
+                            required><?= $escapar($produtoEditar['descricao'] ?? '') ?></textarea>
+                    </div>
 
-                    <input type="text" name="imagem" class="form-control" placeholder="exemplo.png"
-                        value="<?= $produtoEditar['imagem'] ?? '' ?>" required>
-                </div>
+                    <div class="col-md-4">
+                        <label for="imagem" class="form-label">Arquivo da imagem</label>
+                        <input type="text" id="imagem" name="imagem" class="form-control"
+                            maxlength="255" placeholder="exemplo.png"
+                            value="<?= $escapar($produtoEditar['imagem'] ?? '') ?>" required>
+                    </div>
 
-                <button class="btn btn-success">
-                    <?= $produtoEditar ? 'Salvar alterações' : 'Adicionar produto' ?>
-                </button>
+                    <div class="col-md-6">
+                        <label for="categoria" class="form-label">Categoria</label>
+                        <select id="categoria" name="id_categoria" class="form-select" required>
+                            <option value="">Selecione uma categoria</option>
+                            <?php foreach ($categorias as $categoria): ?>
+                                <option value="<?= (int) $categoria['id_categoria'] ?>"
+                                    <?= (int) ($produtoEditar['id_categoria'] ?? 0) === (int) $categoria['id_categoria']
+                                        ? 'selected'
+                                        : '' ?>>
+                                    <?= $escapar($categoria['nome_categoria']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
 
-                <?php if ($produtoEditar): ?>
-                    <a href="catalogo2.php" class="btn btn-secondary">
-                        Cancelar
-                    </a>
-                <?php endif; ?>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <?= $produtoEditar ? 'Salvar alterações' : 'Adicionar produto' ?>
+                        </button>
 
-            </form>
+                        <?php if ($produtoEditar): ?>
+                            <a href="catalogo2.php" class="btn btn-secondary">Cancelar</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+        </section>
 
-
-            <table class="table table-striped align-middle">
-
-                <thead>
-                    <tr>
-                        <th>Imagem</th>
-                        <th>Produto</th>
-                        <th>Descrição</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    <?php foreach ($produtos as $produto): ?>
-
+        <section class="card shadow-sm border-0">
+            <div class="table-responsive w-100">
+                <table class="table table-striped align-middle mb-0">
+                    <thead>
                         <tr>
-
-                            <td>
-                                <img src="../../assets/img/<?= $produto['imagem'] ?>" width="70"
-                                    alt="<?= $produto['nome_produto'] ?>">
-                            </td>
-
-                            <td><?= $produto['nome_produto'] ?></td>
-
-                            <td><?= $produto['descricao'] ?></td>
-
-                            <td>
-
-                                <a href="catalogo2.php?editar=<?= $produto['id_produto'] ?>" class="btn btn-warning btn-sm">
-                                    Editar
-                                </a>
-
-                                <form method="post" class="d-inline" onsubmit="return confirm('Deseja excluir este produto?')">
-
-                                    <input type="hidden" name="acao" value="excluir">
-
-                                    <input type="hidden" name="id_produto" value="<?= $produto['id_produto'] ?>">
-
-                                    <button class="btn btn-danger btn-sm">
-                                        Excluir
-                                    </button>
-
-                                </form>
-
-                            </td>
-
+                            <th>Imagem</th>
+                            <th>Produto</th>
+                            <th>Categoria</th>
+                            <th>Estoque</th>
+                            <th>Valor unitário</th>
+                            <th>Ações</th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($produtos === []): ?>
+                            <tr>
+                                <td colspan="6" class="text-center py-4">Nenhum produto cadastrado.</td>
+                            </tr>
+                        <?php endif; ?>
 
-                    <?php endforeach; ?>
+                        <?php foreach ($produtos as $produto): ?>
+                            <tr>
+                                <td>
+                                    <img src="../../assets/img/<?= $escapar($produto['imagem']) ?>" width="70"
+                                        alt="<?= $escapar($produto['nome_produto']) ?>">
+                                </td>
+                                <td><?= $escapar($produto['nome_produto']) ?></td>
+                                <td><?= $escapar($produto['categorias']) ?></td>
+                                <td><?= (int) $produto['quantidade_estoque'] ?></td>
+                                <td class="text-nowrap">
+                                    <?= $formatarMoeda((float) $produto['valor_unitario']) ?>
+                                </td>
+                                <td class="text-nowrap">
+                                    <a href="catalogo2.php?editar=<?= (int) $produto['id_produto'] ?>"
+                                        class="btn btn-warning btn-sm">Editar</a>
 
-                </tbody>
+                                    <form method="post" class="d-inline"
+                                        onsubmit="return confirm('Deseja excluir este produto e seu vínculo de categoria?')">
+                                        <input type="hidden" name="csrf_token" value="<?= $escapar($csrfToken) ?>">
+                                        <input type="hidden" name="acao" value="excluir">
+                                        <input type="hidden" name="id_produto"
+                                            value="<?= (int) $produto['id_produto'] ?>">
+                                        <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
 
-            </table>
+    <?php include '../../includes/footer.php'; ?>
 
-        </main>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+</body>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-
-    </body>
-
-    </html>
+</html>
