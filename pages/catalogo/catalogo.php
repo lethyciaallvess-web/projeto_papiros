@@ -1,3 +1,75 @@
+<?php
+
+declare(strict_types=1);
+
+require_once '../../config/conexao.php';
+
+$categoriaSelecionada = max(0, (int) ($_GET['categoria'] ?? 0));
+
+$categorias = $pdo->query(
+    "SELECT
+        c.id_categoria,
+        c.nome_categoria,
+        COUNT(DISTINCT pc.id_produto) AS total_produtos
+    FROM categoria AS c
+    LEFT JOIN produto_categoria AS pc
+        ON pc.id_categoria = c.id_categoria
+    GROUP BY c.id_categoria, c.nome_categoria
+    ORDER BY c.nome_categoria"
+)->fetchAll();
+
+$sql = "SELECT
+    p.id_produto,
+    p.nome_produto,
+    p.descricao,
+    p.imagem,
+    p.quantidade_estoque,
+    p.valor_unitario,
+    COALESCE(
+        GROUP_CONCAT(DISTINCT c.nome_categoria ORDER BY c.nome_categoria SEPARATOR ', '),
+        'Sem categoria'
+    ) AS categorias
+FROM produto AS p
+LEFT JOIN produto_categoria AS pc
+    ON pc.id_produto = p.id_produto
+LEFT JOIN categoria AS c
+    ON c.id_categoria = pc.id_categoria
+WHERE :categoria = 0
+    OR EXISTS (
+        SELECT 1
+        FROM produto_categoria AS filtro
+        WHERE filtro.id_produto = p.id_produto
+            AND filtro.id_categoria = :categoria_filtro
+    )
+GROUP BY
+    p.id_produto,
+    p.nome_produto,
+    p.descricao,
+    p.imagem,
+    p.quantidade_estoque,
+    p.valor_unitario
+ORDER BY p.nome_produto";
+
+$consulta = $pdo->prepare($sql);
+$consulta->execute([
+    'categoria' => $categoriaSelecionada,
+    'categoria_filtro' => $categoriaSelecionada
+]);
+$produtos = $consulta->fetchAll();
+
+$escapar = static fn(mixed $valor): string => htmlspecialchars(
+    (string) $valor,
+    ENT_QUOTES,
+    'UTF-8'
+);
+
+$formatarMoeda = static fn(float $valor): string => 'R$ ' . number_format(
+    $valor,
+    2,
+    ',',
+    '.'
+);
+?>
 <!DOCTYPE html>
 <html lang="pt-br">
 
@@ -18,31 +90,13 @@
 
 <body>
 
-    <?php
-    include("../../config/conexao.php");
-    include("../../includes/funcao.php");
-    include("../../includes/header.php");
-    ?>
+    <?php include '../../includes/header.php'; ?>
 
     <section class="catalogo">
 
         <div class="container">
 
             <h1>Catálogo</h1>
-
-            <?php
-
-            $sql = "SELECT * FROM produto ORDER BY nome_produto";
-
-            $resultado = mysqli_query($conexao, $sql);
-
-            $produtos = mysqli_fetch_all($resultado, MYSQLI_ASSOC);
-
-            $categorias = ["Cadeira", "Mesa", "Armário", "Longarina", "Mocho"];
-
-            $categoriaSelecionada = $_GET['categoria'] ?? '';
-
-            ?>
 
             <form class="row g-2 mb-4" method="GET">
 
@@ -53,9 +107,9 @@
 
                         <?php foreach ($categorias as $categoria) { ?>
 
-                            <option value="<?= $categoria ?>"
-                                <?= $categoriaSelecionada === $categoria ? 'selected' : '' ?>>
-                                <?= $categoria ?> (<?= contarProdutosPorCategoria($produtos, $categoria) ?>)
+                            <option value="<?= (int) $categoria['id_categoria'] ?>" <?= $categoriaSelecionada === (int) $categoria['id_categoria'] ? 'selected' : '' ?>>
+                                <?= $escapar($categoria['nome_categoria']) ?>
+                                (<?= (int) $categoria['total_produtos'] ?>)
                             </option>
 
                         <?php } ?>
@@ -72,35 +126,35 @@
             <div class="row">
 
                 <?php
-                if (!validarProdutos($produtos)) {
+                if ($produtos === []) {
 
                     echo "<p>Nenhum produto cadastrado.</p>";
 
                 } else {
 
-                    $produtosExibidos = $categoriaSelecionada !== ''
-                        ? filtrarProdutosPorCategoria($produtos, $categoriaSelecionada)
-                        : $produtos;
-
-                    if (count($produtosExibidos) > 0) {
-
-                        foreach ($produtosExibidos as $produto) {
-                ?>
+                    foreach ($produtos as $produto) {
+                        ?>
 
                         <div class="col-12 col-md-6 col-lg-4 mb-4">
 
                             <div class="catalogo-card">
 
                                 <div class="catalogo-img">
-                                    <img src="../../assets/img/<?= $produto['imagem']; ?>"
-                                        alt="<?= $produto['nome_produto']; ?>">
+                                    <img src="../../assets/img/<?= $escapar($produto['imagem']) ?>"
+                                        alt="<?= $escapar($produto['nome_produto']) ?>">
                                 </div>
 
                                 <div class="catalogo-info">
 
-                                    <h3><?= $produto['nome_produto']; ?></h3>
+                                    <h3><?= $escapar($produto['nome_produto']) ?></h3>
 
-                                    <p><?= $produto['descricao']; ?></p>
+                                    <p><?= $escapar($produto['descricao']) ?></p>
+                                    <p class="text-secondary mb-1">
+                                        <?= $escapar($produto['categorias']) ?>
+                                    </p>
+                                    <p class="fw-bold mb-0">
+                                        <?= $formatarMoeda((float) $produto['valor_unitario']) ?>
+                                    </p>
 
                                 </div>
 
@@ -108,11 +162,7 @@
 
                         </div>
 
-                <?php
-                        }
-                    } else {
-
-                        echo "<p>Nenhum produto encontrado.</p>";
+                        <?php
                     }
                 }
                 ?>

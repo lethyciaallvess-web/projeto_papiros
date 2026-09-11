@@ -14,6 +14,69 @@ $redirecionar = static function (string $mensagem): never {
     exit;
 };
 
+$diretorioImagens = __DIR__ . '/../../assets/img/produtos';
+
+$receberImagem = static function (?array $arquivo) use ($diretorioImagens): ?string {
+    if (!$arquivo || ($arquivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if (($arquivo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException('imagem');
+    }
+
+    $tamanho = (int) ($arquivo['size'] ?? 0);
+
+    if ($tamanho <= 0 || $tamanho > 5 * 1024 * 1024) {
+        throw new InvalidArgumentException('imagem');
+    }
+
+    $arquivoTemporario = (string) ($arquivo['tmp_name'] ?? '');
+    $identificador = new finfo(FILEINFO_MIME_TYPE);
+    $tipo = $identificador->file($arquivoTemporario);
+    $extensoes = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif'
+    ];
+
+    if (!is_string($tipo) || !isset($extensoes[$tipo])) {
+        throw new InvalidArgumentException('imagem');
+    }
+
+    if (
+        !is_dir($diretorioImagens)
+        && !mkdir($diretorioImagens, 0755, true)
+        && !is_dir($diretorioImagens)
+    ) {
+        throw new RuntimeException('Não foi possível criar a pasta de imagens.');
+    }
+
+    $nomeArquivo = 'produto-' . bin2hex(random_bytes(12))
+        . '.' . $extensoes[$tipo];
+    $destino = $diretorioImagens . DIRECTORY_SEPARATOR . $nomeArquivo;
+
+    if (!move_uploaded_file($arquivoTemporario, $destino)) {
+        throw new RuntimeException('Não foi possível salvar a imagem.');
+    }
+
+    return 'produtos/' . $nomeArquivo;
+};
+
+$removerImagemEnviada = static function (?string $imagem) use ($diretorioImagens): void {
+    if (!$imagem || !str_starts_with($imagem, 'produtos/')) {
+        return;
+    }
+
+    $nomeArquivo = basename($imagem);
+    $caminho = $diretorioImagens . DIRECTORY_SEPARATOR . $nomeArquivo;
+
+    if (is_file($caminho)) {
+        unlink($caminho);
+    }
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!tokenCsrfValido($_POST['csrf_token'] ?? null)) {
         $redirecionar('csrf');
@@ -22,11 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = (string) ($_POST['acao'] ?? '');
     $idProduto = max(0, (int) ($_POST['id_produto'] ?? 0));
 
+    $imagemNova = null;
+
     try {
         if ($acao === 'salvar') {
             $nome = trim((string) ($_POST['nome_produto'] ?? ''));
             $descricao = trim((string) ($_POST['descricao'] ?? ''));
-            $imagem = basename(trim((string) ($_POST['imagem'] ?? '')));
             $quantidade = filter_var(
                 $_POST['quantidade_estoque'] ?? null,
                 FILTER_VALIDATE_INT
@@ -41,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (
                 $nome === ''
                 || $descricao === ''
-                || $imagem === ''
                 || $quantidade === false
                 || $quantidade < 0
                 || !is_numeric($valorRecebido)
@@ -58,6 +121,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ((int) $consultaCategoria->fetchColumn() === 0) {
                 $redirecionar('categoria');
+            }
+
+            $imagemAtual = '';
+
+            if ($idProduto > 0) {
+                $consultaImagem = $pdo->prepare(
+                    'SELECT imagem FROM produto WHERE id_produto = ?'
+                );
+                $consultaImagem->execute([$idProduto]);
+                $imagemEncontrada = $consultaImagem->fetchColumn();
+
+                if ($imagemEncontrada === false) {
+                    $redirecionar('invalido');
+                }
+
+                $imagemAtual = (string) $imagemEncontrada;
+            }
+
+            try {
+                $imagemNova = $receberImagem(
+                    isset($_FILES['imagem_arquivo'])
+                        && is_array($_FILES['imagem_arquivo'])
+                        ? $_FILES['imagem_arquivo']
+                        : null
+                );
+            } catch (InvalidArgumentException) {
+                $redirecionar('imagem');
+            }
+
+            $imagem = $imagemNova ?? $imagemAtual;
+
+            if ($imagem === '') {
+                $redirecionar('imagem_obrigatoria');
             }
 
             $valorUnitario = number_format(
@@ -119,10 +215,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $vincularCategoria->execute([$idProduto, $idCategoria]);
 
             $pdo->commit();
+
+            if ($imagemNova !== null && $imagemAtual !== '') {
+                $removerImagemEnviada($imagemAtual);
+            }
+
             $redirecionar('salvo');
         }
 
         if ($acao === 'excluir' && $idProduto > 0) {
+            $consultaImagem = $pdo->prepare(
+                'SELECT imagem FROM produto WHERE id_produto = ?'
+            );
+            $consultaImagem->execute([$idProduto]);
+            $imagemExcluir = $consultaImagem->fetchColumn();
+
+            if ($imagemExcluir === false) {
+                $redirecionar('invalido');
+            }
+
             $pdo->beginTransaction();
 
             $removerVinculos = $pdo->prepare(
@@ -140,6 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+            $removerImagemEnviada((string) $imagemExcluir);
             $redirecionar('excluido');
         }
 
@@ -147,6 +259,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $erro) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
+        }
+
+        if ($imagemNova !== null) {
+            $removerImagemEnviada($imagemNova);
         }
 
         error_log($erro->getMessage());
@@ -215,6 +331,8 @@ $mensagens = [
     'excluido' => ['success', 'Produto e seus vínculos foram excluídos com sucesso.'],
     'invalido' => ['warning', 'Preencha todos os campos com valores válidos.'],
     'categoria' => ['warning', 'Selecione uma categoria existente.'],
+    'imagem' => ['warning', 'Escolha uma imagem JPG, PNG, WEBP ou GIF com até 5 MB.'],
+    'imagem_obrigatoria' => ['warning', 'Escolha uma imagem para o novo produto.'],
     'csrf' => ['danger', 'A sessão do formulário expirou. Atualize a página e tente novamente.'],
     'erro' => ['danger', 'Não foi possível concluir a operação. Nenhuma alteração parcial foi mantida.']
 ];
@@ -274,7 +392,7 @@ $formatarMoeda = static fn(float $valor): string => 'R$ ' . number_format(
                     <?= $produtoEditar ? 'Editar produto' : 'Adicionar produto' ?>
                 </h2>
 
-                <form method="post" class="row g-3">
+                <form method="post" enctype="multipart/form-data" class="row g-3">
                     <input type="hidden" name="csrf_token" value="<?= $escapar($csrfToken) ?>">
                     <input type="hidden" name="acao" value="salvar">
                     <input type="hidden" name="id_produto"
@@ -307,10 +425,21 @@ $formatarMoeda = static fn(float $valor): string => 'R$ ' . number_format(
                     </div>
 
                     <div class="col-md-4">
-                        <label for="imagem" class="form-label">Arquivo da imagem</label>
-                        <input type="text" id="imagem" name="imagem" class="form-control"
-                            maxlength="255" placeholder="exemplo.png"
-                            value="<?= $escapar($produtoEditar['imagem'] ?? '') ?>" required>
+                        <label for="imagem-arquivo" class="form-label">Imagem do produto</label>
+                        <input
+                            type="file"
+                            id="imagem-arquivo"
+                            name="imagem_arquivo"
+                            class="form-control"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            <?= $produtoEditar ? '' : 'required' ?>
+                        >
+                        <div class="form-text">
+                            jpg, png, webp ou gif, com até 5 mb.
+                            <?php if ($produtoEditar): ?>
+                                deixe vazio para manter a imagem atual.
+                            <?php endif; ?>
+                        </div>
                     </div>
 
                     <div class="col-md-6">

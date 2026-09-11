@@ -1,15 +1,27 @@
 <?php
 require_once 'config/conexao.php';
-require_once 'includes/funcao.php';
 
-$resultado = mysqli_query($conexao, "SELECT * FROM produto");
-$produtos = [];
+$categoriasHome = $pdo->query(
+    "SELECT
+        c.id_categoria,
+        c.nome_categoria,
+        COUNT(DISTINCT p.id_produto) AS total_produtos,
+        MIN(p.imagem) AS imagem
+    FROM categoria AS c
+    LEFT JOIN produto_categoria AS pc
+        ON pc.id_categoria = c.id_categoria
+    LEFT JOIN produto AS p
+        ON p.id_produto = pc.id_produto
+    GROUP BY c.id_categoria, c.nome_categoria
+    HAVING COUNT(DISTINCT p.id_produto) > 0
+    ORDER BY c.nome_categoria"
+)->fetchAll();
 
-while ($produto = mysqli_fetch_assoc($resultado)) {
-    $produtos[] = $produto;
-}
-
-$categoriasHome = ["Cadeira", "Mesa", "Armário", "Longarina"];
+$escapar = static fn(mixed $valor): string => htmlspecialchars(
+    (string) $valor,
+    ENT_QUOTES,
+    'UTF-8'
+);
 ?>
 
 <!DOCTYPE html>
@@ -72,26 +84,25 @@ $categoriasHome = ["Cadeira", "Mesa", "Armário", "Longarina"];
 
         <div class="row justify-content-center g-4">
 
-            <?php foreach ($categoriasHome as $categoria):
-                $produtosCategoria = filtrarProdutosPorCategoria($produtos, $categoria);
-
-                if (!empty($produtosCategoria)):
-                    $exemplo = $produtosCategoria[0];
-                    ?>
+            <?php foreach ($categoriasHome as $categoria): ?>
 
                     <div class="col-6 col-md-3">
-                        <a href="pages/catalogo/catalogo.php?categoria=<?= urlencode($categoria) ?>"
+                        <a href="pages/catalogo/catalogo.php?categoria=<?= (int) $categoria['id_categoria'] ?>"
                             class="text-decoration-none text-dark">
 
                             <div class="card h-100">
-                                <img src="assets/img/<?= $exemplo['imagem'] ?>" alt="<?= $categoria ?>">
-                                <p><?= $categoria ?></p>
+                                <img src="assets/img/<?= $escapar($categoria['imagem']) ?>"
+                                    alt="<?= $escapar($categoria['nome_categoria']) ?>">
+                                <p><?= $escapar($categoria['nome_categoria']) ?></p>
+                                <small class="text-secondary">
+                                    <?= (int) $categoria['total_produtos'] ?> produtos
+                                </small>
                             </div>
 
                         </a>
                     </div>
 
-                <?php endif; endforeach; ?>
+            <?php endforeach; ?>
 
         </div>
 

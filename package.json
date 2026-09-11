@@ -1,24 +1,24 @@
 {
   "name": "papiros",
   "version": "1.0.0",
-  "description": "��#\u0000 \u0000P\u0000a\u0000p\u0000i\u0000r\u0000o\u0000s\u0000\r\u0000 \u0000",
+  "description": "Catálogo e dashboard de estoque da Papiros Office",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "build": "tsc",
+    "check": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lethycialves/Papiros.git"
+    "url": "git+https://github.com/lethyciaallvess-web/projeto_papiros.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Lethycia Alves",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/lethycialves/Papiros/issues"
+    "url": "https://github.com/lethyciaallvess-web/projeto_papiros/issues"
   },
-  "homepage": "https://github.com/lethycialves/Papiros#readme",
+  "homepage": "https://github.com/lethyciaallvess-web/projeto_papiros#readme",
   "devDependencies": {
     "typescript": "^7.0.2"
   }

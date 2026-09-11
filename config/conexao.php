@@ -1,20 +1,20 @@
 <?php
 
-$servidor = "localhost";
-$usuario = "root";
-$senha = "";
-$banco = "projeto_papiros";
+declare(strict_types=1);
 
-$conexao = new mysqli($servidor, $usuario, $senha, $banco);
+$servidor = getenv('PAPIROS_DB_HOST') ?: '127.0.0.1';
+$porta = getenv('PAPIROS_DB_PORT') ?: '3306';
+$usuario = getenv('PAPIROS_DB_USER') ?: 'root';
+$senha = getenv('PAPIROS_DB_PASSWORD') ?: '';
+$banco = getenv('PAPIROS_DB_NAME') ?: 'projeto_papiros';
 
-if ($conexao->connect_error) {
-    die("Falha na conexão: " . $conexao->connect_error);
-}
-
-// conexao login
-try {
-    $pdo = new PDO("mysql:host=$servidor;dbname=$banco;charset=utf8", $usuario, $senha);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Falha na conexão PDO: " . $e->getMessage());
-}
+$pdo = new PDO(
+    "mysql:host={$servidor};port={$porta};dbname={$banco};charset=utf8mb4",
+    $usuario,
+    $senha,
+    [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false
+    ]
+);
